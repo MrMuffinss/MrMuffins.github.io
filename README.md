@@ -1,48 +1,61 @@
-<!DOCTYPE html>
-<html lang="en">
+#include <iostream>
+#include <string>
+#include <boost/asio.hpp>
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Website</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
+using namespace std;
+using namespace boost::asio;
+
+class Server {
+public:
+    Server(io_service& ios, int port) : acceptor(ios, ip::tcp::endpoint(ip::tcp::v4(), port)),
+                                         socket(ios) {
+        startAccept();
+    }
+
+private:
+    void startAccept() {
+        acceptor.async_accept(socket, [this](const boost::system::error_code& ec) {
+            if (!ec) {
+                handleRequest();
+            }
+            startAccept();
+        });
+    }
+
+    void handleRequest() {
+        boost::system::error_code ec;
+        streambuf request;
+        read_until(socket, request, "\r\n\r\n", ec);
+
+        if (!ec) {
+            istream request_stream(&request);
+            string header;
+            getline(request_stream, header);
+
+            // Simple check for a GET request
+            if (header.find("GET") == 0) {
+                sendResponse();
+            }
         }
+    }
 
-        header {
-            text-align: center;
-            padding: 10px;
-            background-color: #f2f2f2;
-        }
+    void sendResponse() {
+        string response = "HTTP/1.1 200 OK\r\nContent-Length: 13\r\n\r\nHello, World!";
+        write(socket, buffer(response));
+    }
 
-        main {
-            padding: 20px;
-        }
+    ip::tcp::acceptor acceptor;
+    ip::tcp::socket socket;
+};
 
-        footer {
-            text-align: center;
-            padding: 10px;
-            background-color: #f2f2f2;
-        }
-    </style>
-</head>
+int main() {
+    try {
+        io_service ios;
+        Server server(ios, 8080);
+        ios.run();
+    } catch (exception& e) {
+        cerr << "Exception: " << e.what() << endl;
+    }
 
-<body>
-
-    <header>
-        <h1>Welcome to My Simple Website</h1>
-    </header>
-
-    <main>
-        <p>This is a basic example of an HTML website. Feel free to customize and add more content!</p>
-    </main>
-
-    <footer>
-        <p>&copy; 2024 Simple Website</p>
-    </footer>
-
-</body>
-
-</html>
+    return 0;
+}
